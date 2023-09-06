@@ -91,14 +91,19 @@ ${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
 # TODO: Add library dependencies to rootfs
-TOOLCHAIN_DIR=/usr/aarch64-linux-gnu/lib
-cp ${TOOLCHAIN_DIR}/ld-linux-aarch64.so.1 lib/
-cp ${TOOLCHAIN_DIR}/libm.so.6 lib64/
-cp ${TOOLCHAIN_DIR}/libresolv.so.2 lib64/
-cp ${TOOLCHAIN_DIR}/libc.so.6 lib64/
-cp ${TOOLCHAIN_DIR}/libm.so.6 lib/
-cp ${TOOLCHAIN_DIR}/libresolv.so.2 lib/
-cp ${TOOLCHAIN_DIR}/libc.so.6 lib/
+#TOOLCHAIN_DIR=/usr/aarch64-linux-gnu/lib
+#cp ${TOOLCHAIN_DIR}/ld-linux-aarch64.so.1 lib/
+#cp ${TOOLCHAIN_DIR}/libm.so.6 lib64/
+#cp ${TOOLCHAIN_DIR}/libresolv.so.2 lib64/
+#cp ${TOOLCHAIN_DIR}/libc.so.6 lib64/
+#cp ${TOOLCHAIN_DIR}/libm.so.6 lib/
+#cp ${TOOLCHAIN_DIR}/libresolv.so.2 lib/
+#cp ${TOOLCHAIN_DIR}/libc.so.6 lib/
+TOOLCHAIN_DIR=`${CROSS_COMPILE}gcc --print-sysroot`
+cp ${TOOLCHAIN_DIR}/lib/ld-linux-aarch64.so.1 lib/
+cp ${TOOLCHAIN_DIR}/lib64/libm.so.6 lib64/
+cp ${TOOLCHAIN_DIR}/lib64/libresolv.so.2 lib64/
+cp ${TOOLCHAIN_DIR}/lib64/libc.so.6 lib64/
 
 # TODO: Make device nodes
 if [ ! -c "${OUTDIR}/rootfs/dev/console" ]
