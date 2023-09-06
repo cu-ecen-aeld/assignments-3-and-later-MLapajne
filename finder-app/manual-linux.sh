@@ -13,7 +13,7 @@ KERNEL_VERSION=v5.19
 BUSYBOX_VERSION=1_36_1
 FINDER_APP_DIR=$(realpath $(dirname $0))
 ARCH=arm64
-CROSS_COMPILE=aarch64-linux-gnu-
+CROSS_COMPILE=aarch64-none-linux-gnu-
 
 
 if [ $# -lt 1 ]
