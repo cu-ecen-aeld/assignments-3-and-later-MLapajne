@@ -1,21 +1,20 @@
-CC = gcc
-CFLAGS = -Wall -Wextra
-TARGET = writer
-OBJFILES = writer.o
-
-ifdef CROSS_COMPILE
-    CC = $(CROSS_COMPILE)gcc
+#command line
+ifeq ($(strip $(CROSS_COMPILE)),)
+	CC := gcc
+else
+	CC := $(CROSS_COMPILE)gcc
 endif
 
-.PHONY: all clean
+#passed options
+CFLAGS= -c -Wall -g
 
-all: $(TARGET)
+all: writer
 
-$(TARGET): $(OBJFILES)
-	$(CC) $(CFLAGS) -o $@ $^
+writer: writer.o
+	$(CC) writer.o -o writer
 
-%.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+writer.o: writer.c
+	$(CC) $(CFLAGS) writer.c
 
 clean:
-	rm -f $(TARGET) $(OBJFILES)
+	rm -rf *.o writer *.elf *.map
