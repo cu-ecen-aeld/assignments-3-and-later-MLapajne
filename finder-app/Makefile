@@ -7,14 +7,18 @@ endif
 
 #passed options
 CFLAGS= -c -Wall -g
+TARGET = writer
+OBJFILES = writer.o
 
-all: writer
+.PHONY: all clean
 
-writer: writer.o
-	$(CC) writer.o -o writer
+all: $(TARGET)
 
-writer.o: writer.c
-	$(CC) $(CFLAGS) writer.c
+$(TARGET): $(OBJFILES)
+	$(CC) $(CFLAGS) -o $@ $^
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -rf *.o writer *.elf *.map
+	rm -f $(TARGET) $(OBJFILES)
