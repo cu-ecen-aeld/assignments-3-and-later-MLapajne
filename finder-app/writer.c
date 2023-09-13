@@ -15,7 +15,7 @@ extern int errno;
 int main(int argc, char *argv[]) {
     
     openlog(NULL, 0, LOG_USER);
-    syslog(LOG_DEBUG, "Writing %s to %s", argv[2], argv[1]);
+    
 
     if ( argc != 3 ) { //0 je ime datoteke in tudi prvi element
         printf("ERROR invalid number of arguments \n");
@@ -53,6 +53,10 @@ int main(int argc, char *argv[]) {
 
     }
 
+    syslog(LOG_DEBUG, "Writing %s to %s", argv[2], argv[1]);
+
+    closelog();
+    
     return 0;
     
 
