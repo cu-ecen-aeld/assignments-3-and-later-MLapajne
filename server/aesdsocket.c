@@ -17,6 +17,8 @@
 #include <signal.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/queue.h>
+#include <pthread.h>
 
 extern int errno;
 
@@ -25,11 +27,25 @@ extern int errno;
 #define PORT "9000"  // the port users will be connecting to
 #define BACKLOG 10   // how many pending connections queue will hold
 #define FILE_PATH "/var/tmp/aesdsocketdata"
+#define TIMESTAMP_INTERVAL 10
 
 int sockfd1 = 0;
-int sockfd2 = 0;
+//int sockfd2 = 0;
 bool daemon_mode = false;
+pthread_mutex_t mutex;
 
+
+
+// SLIST.
+typedef struct slist_data_s slist_data_t;
+struct slist_data_s {
+    pthread_t thread;
+    int client_socket;
+    SLIST_ENTRY(slist_data_s) entries;
+};
+
+//slist_data_t *datap=NULL;
+SLIST_HEAD(slisthead, slist_data_s) head;
 
 
 
@@ -37,6 +53,22 @@ bool daemon_mode = false;
 void handle_signal(int signum) {
     if (signum == SIGINT || signum == SIGTERM) {
         syslog(LOG_INFO, "Received SIGINT or SIGTERM. Closing the server.\n");
+
+
+        slist_data_t *datap_iter=NULL;
+        SLIST_FOREACH(datap_iter, &head, entries) {
+            if (pthread_cancel(datap_iter->thread) == -1) {                                            
+                perror("pthread_cancel failed");                                                                                                                
+            }  
+            int pj = pthread_join(datap_iter->thread, NULL);
+            if (pj != 0) {
+                perror("Attempt to pthread_join thread failed with\n");
+                //return false;
+            } 
+        }
+
+
+        pthread_mutex_destroy(&mutex);
         shutdown(sockfd1, SHUT_RDWR);
         remove(FILE_PATH);
         closelog();
@@ -83,60 +115,183 @@ int writeFile(const char *file_path, const char *content, ssize_t bytes_received
     return EXIT_SUCCESS;
 }
 
-void handle_connection() {
+void *add_timestamps(void *arg) {
+    while (1) {
+        // Avoid compilation warning
+        if (arg == NULL)
+        {
+            // Get current hour
+            time_t current_time;
+            struct tm *time_info;
+            char timestamp_str[64];
+            
+            time(&current_time);
+            time_info = localtime(&current_time);
+
+            strftime(timestamp_str, sizeof(timestamp_str), "timestamp:%a, %d %b %Y %H:%M:%S %z", time_info);
+            
+            // Abre el archivo y escribe el timestamp
+            pthread_mutex_lock(&mutex);
+            FILE *data_file = fopen(FILE_PATH, "a");
+            if (data_file != NULL) {
+                fprintf(data_file, "%s\n", timestamp_str);
+                fclose(data_file);
+            }
+            pthread_mutex_unlock(&mutex);
+            
+            sleep(TIMESTAMP_INTERVAL);
+        }
+    }
+}
+
+void* threadfunc(void* thread_param) {
+    char buffer[1024] = {0};
+    FILE *data_file = NULL;
     struct sockaddr_in client_addr = {0};
     socklen_t client_addr_len = sizeof(client_addr);
-    ssize_t data_recv = 0;
-	char buffer[1024] = {0};
-    FILE *data_file = NULL;
+    
+    //struct thread_data* thread_func_args = (struct thread_data *) thread_param;
+    slist_data_t *datap = (slist_data_t *)thread_param;
+    
 
-    if (getpeername(sockfd2, (struct sockaddr *)&client_addr, &client_addr_len) == 0) {
-            syslog(LOG_INFO, "Accepted connection from %s", inet_ntoa(client_addr.sin_addr));
+
+    if (getpeername(datap->client_socket, (struct sockaddr *)&client_addr, &client_addr_len) == 0) {
+        syslog(LOG_INFO, "Accepted connection from %s", inet_ntoa(client_addr.sin_addr));
     }
 
-	while(1) {
-		
-        if ((sockfd2 = accept(sockfd1, (struct sockaddr *)&client_addr, &client_addr_len)) == -1) {
-			perror("Error on accept() call \n");
-			exit(EXIT_FAILURE);
-		}
-        do {
-            data_recv = recv(sockfd2, buffer, sizeof buffer, 0);
-            if (data_recv < 0) {
-                perror("Connection closed or error while receiving\n");
-                break;
-            } else if (data_recv > 0) {
-    
-                //printf("Data received: %ld : %s \n", data_recv, buffer);
+    while(1) {
+        ssize_t data_recv = recv(datap->client_socket, buffer, sizeof buffer, 0);
 
-                if (writeFile(FILE_PATH, buffer, data_recv) == EXIT_FAILURE) {
-                    exit(EXIT_FAILURE);
-                }
-                
-                if(strstr(buffer, "\n") != NULL) {
-                    // Send the content of the data file back to the client
-                    data_file = fopen(FILE_PATH, "r");
-                    if (data_file == NULL) {
-                        perror("Error opening data file");
-                        exit(-1);
-                    }
-                    char *line = NULL;
-                    size_t length = 0;
-                    ssize_t bytes_read = 0;
-                    while ((bytes_read = getline(&line, &length, data_file)) > 0) {
-                        if (send(sockfd2, line, bytes_read, 0) == -1) {
-                            perror("Error sending data");
-                            break;
-                        }
-                    }
-                    free(line);
-                    fclose(data_file);
+        if (data_recv < 0) {
+            perror("Connection closed or error while receiving\n");
+            break;
+        } else if (data_recv == 0) {
+            // Listen for incoming connections
+            if (listen(sockfd1, BACKLOG) == -1) {
+                perror("Error listening for connections");
+                close(sockfd1);
+                free(datap);
+                pthread_exit(NULL);
+                exit(-1);
+            }
+
+            struct sockaddr_in client_addr = {0};
+            socklen_t client_addr_len = sizeof(client_addr);
+            datap->client_socket = accept(sockfd1, (struct sockaddr *)&client_addr, &client_addr_len);
+            if (datap->client_socket == -1) {
+                perror("Error accepting connection");
+                free(datap);
+                pthread_exit(NULL);
+                exit(-1);
+            }
+            continue;
+        }
+
+
+
+        //printf("Data received: %ld : %s \n", data_recv, buffer);
+        
+        //mutex lock
+        int tl = pthread_mutex_lock(&mutex);
+        if (tl != 0) {
+            perror("Attempt to obtain mutex failed with\n");
+        }
+
+
+        if (writeFile(FILE_PATH, buffer, data_recv) == EXIT_FAILURE) {
+            //exit(EXIT_FAILURE);
+            perror("Error writing file");
+        }
+        int tu = pthread_mutex_unlock(&mutex);
+        if (tu != 0) {
+            perror("Attempt to unlock mutex failed with\n");
+        }
+        
+        
+        if(strstr(buffer, "\n") != NULL) {
+
+
+
+            pthread_mutex_lock(&mutex);
+
+            data_file = fopen(FILE_PATH, "r");
+            if (data_file == NULL) {
+                perror("Error opening data file");
+                free(datap);
+                pthread_exit(NULL);
+                exit(-1);
+            }
+            char *line = NULL;
+            size_t length = 0;
+            ssize_t bytes_read = 0;
+            while ((bytes_read = getline(&line, &length, data_file)) > 0) {
+                if (send(datap->client_socket, line, bytes_read, 0) == -1) {
+                    perror("Error sending data");
+                    break;
                 }
             }
-        } while(data_recv > 0);
+            free(line);
+            fclose(data_file);
+            pthread_mutex_unlock(&mutex);
+    
+        }
+        
+      
+        
+    }
+    
+    
 
-	    close(sockfd2);
-        syslog(LOG_DEBUG, "Closed conection from %s", inet_ntoa(client_addr.sin_addr));
+    
+    close(datap->client_socket);
+    free(datap);
+    syslog(LOG_DEBUG, "Closed conection from %s", inet_ntoa(client_addr.sin_addr));
+    pthread_exit(NULL);
+
+
+}
+static int handle_connection() {
+    
+
+    SLIST_INIT(&head);
+
+    // Handle timestamp
+    pthread_t timestamp_thread;
+    if (pthread_create(&timestamp_thread, NULL, add_timestamps, NULL) != 0) {
+        perror("Error creating timestamp thread");
+        exit(EXIT_FAILURE);
+    }
+
+
+	while(1) {
+
+        
+        //write to list
+        slist_data_t *datap = (slist_data_t *)malloc(sizeof(slist_data_t));
+        //datap->completed = false;
+        
+
+    
+		struct sockaddr_in client_addr = {0};
+        socklen_t client_addr_len = sizeof(client_addr);
+        if ((datap->client_socket = accept(sockfd1, (struct sockaddr *)&client_addr, &client_addr_len)) == -1) {
+			perror("Error on accept() call \n");
+            free(datap);
+			exit(EXIT_FAILURE);
+		}
+        
+
+
+        int pc = pthread_create(&datap->thread, NULL, threadfunc, datap);
+        if (pc != 0) {
+            perror("Thread can't be created\n");
+            free(datap);
+            close(datap->client_socket);
+            exit(EXIT_FAILURE);
+        } else {
+            SLIST_INSERT_HEAD(&head, datap, entries);
+        }
+        
 	}
 }
 
@@ -205,20 +360,24 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
 	}
 
+    int pmi;
+    if ((pmi = pthread_mutex_init(&mutex, NULL)) != 0) {
+        perror("Failed to initialize account mutex\n");
+    }
+
     if (daemon_mode) {
         if (fork() == 0) {
-            handle_connection();
-            exit(0);
+            int ret = handle_connection();
+            close(sockfd1);
+            exit(ret);
         } else {
             exit(0);
         }
     } else {
-        handle_connection();
+        int ret = handle_connection();
+        close(sockfd1);
+        exit(ret);
     }
     
     
-    close(sockfd1);
-    closelog();
-
-    return 0;
 }
