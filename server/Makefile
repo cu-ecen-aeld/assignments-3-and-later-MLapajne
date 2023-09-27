@@ -1,11 +1,12 @@
 #passed options
-CC = gcc
-CFLAGS= -g -Wall -Wextra -Werror
-TARGET = aesdsocket
-OBJFILES = aesdsocket.o
+CC ?= gcc
+CFLAGS ?= -g -Wall -Wextra -Werror
+LDFLAGS ?= -lpthread
+TARGET ?= aesdsocket
+OBJFILES ?= aesdsocket.o
 
 ifdef CROSS_COMPILE
-    CC = $(CROSS_COMPILE)gcc
+    CC ?= $(CROSS_COMPILE)gcc
 endif
 
 
@@ -15,10 +16,10 @@ endif
 all: $(TARGET)
 
 $(TARGET): $(OBJFILES)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $< $(LDFLAGS)
 
 clean:
 	rm -f $(TARGET) $(OBJFILES)
