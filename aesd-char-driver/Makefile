@@ -1,25 +1,30 @@
-#passed options
-CC ?= gcc
-CFLAGS ?= -g -Wall -Wextra -Werror
-LDFLAGS ?= -lpthread
-TARGET ?= aesd-circular-buffer
-OBJFILES ?= aesd-circular-buffer.o
+# See example Makefile from scull project
+# Comment/uncomment the following line to disable/enable debugging
+#DEBUG = y
 
-ifdef CROSS_COMPILE
-    CC ?= $(CROSS_COMPILE)gcc
+# Add your debugging flag (or not) to CFLAGS
+ifeq ($(DEBUG),y)
+  DEBFLAGS = -O -g -DSCULL_DEBUG # "-O" is needed to expand inlines
+else
+  DEBFLAGS = -O2
 endif
 
+EXTRA_CFLAGS += $(DEBFLAGS)
 
+ifneq ($(KERNELRELEASE),)
+# call from kernel build system
+obj-m	:= aesdchar.o
+aesdchar-y := aesd-circular-buffer.o main.o
+else
 
-.PHONY: all clean
+KERNELDIR ?= /lib/modules/$(shell uname -r)/build
+PWD       := $(shell pwd)
 
-all: $(TARGET)
+modules:
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
 
-$(TARGET): $(OBJFILES)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $< $(LDFLAGS)
+endif
 
 clean:
-	rm -f $(TARGET) $(OBJFILES)
+	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions
+
