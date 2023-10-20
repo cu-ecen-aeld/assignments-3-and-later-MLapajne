@@ -22,11 +22,18 @@
 
 extern int errno;
 
+#define USE_AESD_CHAR_DEVICE 1
+
+#if (USE_AESD_CHAR_DEVICE == 1)
+    #define FILE_PATH "/dev/aesdchar"
+#else
+    #define FILE_PATH "/var/tmp/aesdsocketdata"
+#endif
 
 
 #define PORT "9000"  // the port users will be connecting to
 #define BACKLOG 10   // how many pending connections queue will hold
-#define FILE_PATH "/var/tmp/aesdsocketdata"
+
 #define TIMESTAMP_INTERVAL 10
 
 int sockfd1 = 0;
@@ -70,7 +77,10 @@ void handle_signal(int signum) {
 
         pthread_mutex_destroy(&mutex);
         shutdown(sockfd1, SHUT_RDWR);
-        remove(FILE_PATH);
+
+        if (USE_AESD_CHAR_DEVICE == 1) {
+            remove(FILE_PATH);
+        }
         closelog();
         exit(EXIT_SUCCESS);
     }
@@ -256,12 +266,14 @@ static int handle_connection() {
     SLIST_INIT(&head);
 
     // Handle timestamp
-    pthread_t timestamp_thread;
-    if (pthread_create(&timestamp_thread, NULL, add_timestamps, NULL) != 0) {
-        perror("Error creating timestamp thread");
-        exit(EXIT_FAILURE);
-    }
 
+    if (USE_AESD_CHAR_DEVICE == 1) {
+        pthread_t timestamp_thread;
+        if (pthread_create(&timestamp_thread, NULL, add_timestamps, NULL) != 0) {
+            perror("Error creating timestamp thread");
+            exit(EXIT_FAILURE);
+        }
+    }
 
 	while(1) {
 
