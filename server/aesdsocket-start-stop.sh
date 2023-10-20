@@ -1,9 +1,12 @@
 #! /bin/sh
 
+AESDSOCKET_ARGS="$AESDSOCKET_ARGS -d"
+
 case "$1" in
     start)
         echo "Starting aesdsocket"
-        start-stop-daemon -S -n aesdsocket -- /usr/bin/aesdsocket -d
+        start-stop-daemon -S -n aesdsocket -- /usr/bin/aesdsocket \
+        -- $AESDSOCKET_ARGS
         ;;
     stop)
         echo "Stopping aesdsocket"
