@@ -211,6 +211,8 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 
     /* Check if data has newline character */
     if (aesd_device.cmd.buffptr[aesd_device.cmd.size - 1] == '\n') {
+        if (aesd_device.circbuf.entry[aesd_device.circbuf.in_offs].buffptr)
+            kfree(aesd_device.circbuf.entry[aesd_device.circbuf.in_offs].buffptr);
         aesd_circular_buffer_add_entry(&aesd_device.circbuf, &aesd_device.cmd);
         aesd_device.cmd.size = 0;
         aesd_device.cmd.buffptr = NULL;
