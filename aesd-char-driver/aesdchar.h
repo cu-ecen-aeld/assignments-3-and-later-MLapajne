@@ -29,11 +29,7 @@
 
 #define MAXCMDLEN   1024
 
-struct command_buffer
-{
-     char buf[MAXCMDLEN];
-     size_t size;
-};
+
 
 
 struct aesd_dev
@@ -42,7 +38,7 @@ struct aesd_dev
      * TODO: Add structure(s) and locks needed to complete assignment requirements
      */
      struct aesd_circular_buffer circbuf;
-     struct command_buffer cmd;
+     struct aesd_buffer_entry cmd;
      struct mutex lock;     /* mutual exclusion semaphore     */
      struct cdev cdev;     /* Char device structure      */
 };
