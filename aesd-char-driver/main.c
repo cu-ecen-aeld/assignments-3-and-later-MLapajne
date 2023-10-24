@@ -184,18 +184,16 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 {
     PDEBUG("write %zu bytes with offset %lld", count, *f_pos);
     ssize_t retval = -ENOMEM;
-    char *data = NULL;
     struct aesd_dev *s_dev_p = filp->private_data;
-    struct command_buffer *s_cmd_p = &(s_dev_p->cmd);
 
     if (mutex_lock_interruptible(&s_dev_p->lock))
         retval = -ERESTARTSYS;
         goto out;
 
-    if (!s_cmd_p->buffptr)
+    if (!s_dev_p->cmd->buffptr)
     {
-        s_cmd_p->buffptr = kmalloc(BUF_SIZE, GFP_KERNEL);
-        if (!s_cmd_p->buffptr){
+        s_dev_p->cmd->buffptr = kmalloc(BUF_SIZE, GFP_KERNEL);
+        if (!s_dev_p->cmd->buffptr){
             goto out;
         }
         //memset(s_cmd_p->buf, 0, BUF_SIZE);
@@ -203,19 +201,19 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
  
     
     /* Copy the write command from user space */
-    if (copy_from_user(&s_cmd_p->buffptr[s_cmd_p->size], buf, count)) {
+    if (copy_from_user(&s_dev_p->cmd->buffptr[s_dev_p->cmd->size], buf, count)) {
         retval = -EFAULT;
         goto out;
     }
 
-    s_cmd_p->size += count;
+    s_dev_p->cmd->size += count;
     *f_pos += count;
 
     /* Check if data has newline character */
-    if (s_cmd_p->buffptr[s_cmd_p->size - 1] == '\n') {
-        aesd_circular_buffer_add_entry(&s_dev_p->circbuf, &s_cmd_p);
-        s_cmd_p->size = 0;
-        s_cmd_p->buffptr = NULL;
+    if (s_dev_p->cmd->buffptr[s_dev_p->cmd->size - 1] == '\n') {
+        aesd_circular_buffer_add_entry(&s_dev_p->circbuf, &s_dev_p->cmd);
+        s_dev_p->cmd->size = 0;
+        s_dev_p->cmd->buffptr = NULL;
     }
     
     retval = count;
