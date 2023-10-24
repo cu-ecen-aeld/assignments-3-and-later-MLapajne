@@ -17,6 +17,7 @@
 #include <linux/types.h>
 #include <linux/cdev.h>
 #include <linux/fs.h> // file_operations
+#include <linux/slab.h>  // Include this header for kmalloc
 #include "aesdchar.h"
 
 
