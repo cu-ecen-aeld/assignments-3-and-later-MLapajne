@@ -190,10 +190,10 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         retval = -ERESTARTSYS;
         goto out;
 
-    if (!s_dev_p->cmd->buffptr)
+    if (!s_dev_p->cmd.buffptr)
     {
-        s_dev_p->cmd->buffptr = kmalloc(BUF_SIZE, GFP_KERNEL);
-        if (!s_dev_p->cmd->buffptr){
+        s_dev_p->cmd.buffptr = kmalloc(BUF_SIZE, GFP_KERNEL);
+        if (!s_dev_p->cmd.buffptr){
             goto out;
         }
         //memset(s_cmd_p->buf, 0, BUF_SIZE);
@@ -201,19 +201,19 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
  
     
     /* Copy the write command from user space */
-    if (copy_from_user(&s_dev_p->cmd->buffptr[s_dev_p->cmd->size], buf, count)) {
+    if (copy_from_user(&s_dev_p->cmd.buffptr[s_dev_p->cmd.size], buf, count)) {
         retval = -EFAULT;
         goto out;
     }
 
-    s_dev_p->cmd->size += count;
+    s_dev_p->cmd.size += count;
     *f_pos += count;
 
     /* Check if data has newline character */
-    if (s_dev_p->cmd->buffptr[s_dev_p->cmd->size - 1] == '\n') {
+    if (s_dev_p->cmd.buffptr[s_dev_p->cmd.size - 1] == '\n') {
         aesd_circular_buffer_add_entry(&s_dev_p->circbuf, &s_dev_p->cmd);
-        s_dev_p->cmd->size = 0;
-        s_dev_p->cmd->buffptr = NULL;
+        s_dev_p->cmd.size = 0;
+        s_dev_p->cmd.buffptr = NULL;
     }
     
     retval = count;
