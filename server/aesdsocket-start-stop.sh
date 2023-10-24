@@ -1,5 +1,5 @@
 #! /bin/sh
-
+:  << COMMENT 
 AESDSOCKET_ARGS="$AESDSOCKET_ARGS -d"
 
 case "$1" in
@@ -18,3 +18,4 @@ case "$1" in
 esac
 
 exit 0
+COMMENT
