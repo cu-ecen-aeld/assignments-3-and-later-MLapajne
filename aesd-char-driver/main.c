@@ -34,6 +34,7 @@ module_param(aesd_major, int, S_IRUGO);
 module_param(aesd_minor, int, S_IRUGO);
 
 
+#define BUF_SIZE  (1024 * 1024)
 
 
 MODULE_AUTHOR("Matevz Lapajne"); /** TODO: fill in your name **/
@@ -191,6 +192,14 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         retval = -ERESTARTSYS;
         goto out;
 
+    if (!s_cmd_p->buf)
+    {
+        s_cmd_p->buf = kmalloc(BUF_SIZE, GFP_KERNEL);
+        if (!s_cmd_p->buf){
+            goto out;
+        }
+        //memset(s_cmd_p->buf, 0, BUF_SIZE);
+    }
  
     
     /* Copy the write command from user space */
@@ -200,34 +209,18 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     }
 
     s_cmd_p->size += count;
+    *f_pos += count;
 
     /* Check if data has newline character */
-    if (s_cmd_p->buf[s_cmd_p->size - 1] != '\n') {
-        /* Append data to aesd_device.cmd.buf */
-        retval = count;
-        *f_pos =+ count;
-        goto out;
-    } else {
-        // Write to circular buffer 
-        char *buffptr;
-        buffptr = kmalloc(s_cmd_p->size, GFP_KERNEL);
-        if (!buffptr) {
-            retval = -ENOMEM;
-            goto out;
-        }
-        memcpy(buffptr, s_cmd_p->buf, s_cmd_p->size);
-        struct aesd_buffer_entry entry;
-        entry.buffptr = buffptr;
-        entry.size = s_cmd_p->size;
-        aesd_circular_buffer_add_entry(&s_dev_p->circbuf, &entry);
+    if (s_cmd_p->buf[s_cmd_p->size - 1] == '\n') {
+        aesd_circular_buffer_add_entry(&s_dev_p->circbuf, &s_cmd_p);
         s_cmd_p->size = 0;
+        s_cmd_p->buf = NULL;
     }
     
     retval = count;
-    *f_pos += count;
+    
   out:
-    if (data)
-        kfree(data);
 	mutex_unlock(&s_dev_p->lock);
 	return retval;
 
@@ -273,7 +266,6 @@ int aesd_init_module(void)
      * TODO: initialize the AESD specific portion of the device
      */
     aesd_circular_buffer_init(&aesd_device.circbuf);
-    aesd_device.cmd.size = 0;
     mutex_init(&aesd_device.lock);
 
 
