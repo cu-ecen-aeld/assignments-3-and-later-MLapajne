@@ -136,12 +136,12 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 	ssize_t retval = 0;
     struct aesd_dev *s_dev_p = filp->private_data;
 
-	if (mutex_lock_interruptible(&s_dev_p->lock))
+	if (mutex_lock_interruptible(&aesd_device.lock))
 		return -ERESTARTSYS;
 
     /* Find the circular buffer entry that corresponds to the specified file position */
     size_t entry_offset_byte;
-    struct aesd_buffer_entry *entry = aesd_circular_buffer_find_entry_offset_for_fpos(&s_dev_p->circbuf, *f_pos, &entry_offset_byte);
+    struct aesd_buffer_entry *entry = aesd_circular_buffer_find_entry_offset_for_fpos(&aesd_device.circbuf, *f_pos, &entry_offset_byte);
     if (entry == NULL) {
         /* Handle error */
         retval = -EFAULT;
@@ -162,7 +162,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     retval = bytes_to_read;
 
   out:
-	mutex_unlock(&s_dev_p->lock);
+	mutex_unlock(&aesd_device.lock);
 	return retval;
 }
 
@@ -184,16 +184,16 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 {
     PDEBUG("write %zu bytes with offset %lld", count, *f_pos);
     ssize_t retval = -ENOMEM;
-    struct aesd_dev *s_dev_p = filp->private_data;
+    /* struct aesd_dev *s_dev_p = filp->private_data; */
 
-    if (mutex_lock_interruptible(&s_dev_p->lock))
+    if (mutex_lock_interruptible(&aesd_device.lock))
         retval = -ERESTARTSYS;
         goto out;
 
-    if (!s_dev_p->cmd.buffptr)
+    if (!aesd_device.cmd.buffptr)
     {
-        s_dev_p->cmd.buffptr = kmalloc(BUF_SIZE, GFP_KERNEL);
-        if (!s_dev_p->cmd.buffptr){
+        aesd_device.cmd.buffptr = kmalloc(BUF_SIZE, GFP_KERNEL);
+        if (!aesd_device.cmd.buffptr){
             goto out;
         }
         //memset(s_cmd_p->buf, 0, BUF_SIZE);
@@ -201,25 +201,25 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
  
     
     /* Copy the write command from user space */
-    if (copy_from_user(&s_dev_p->cmd.buffptr[s_dev_p->cmd.size], buf, count)) {
+    if (copy_from_user(&aesd_device.cmd.buffptr[aesd_device.cmd.size], buf, count)) {
         retval = -EFAULT;
         goto out;
     }
 
-    s_dev_p->cmd.size += count;
+    aesd_device.cmd.size += count;
     *f_pos += count;
 
     /* Check if data has newline character */
-    if (s_dev_p->cmd.buffptr[s_dev_p->cmd.size - 1] == '\n') {
-        aesd_circular_buffer_add_entry(&s_dev_p->circbuf, &s_dev_p->cmd);
-        s_dev_p->cmd.size = 0;
-        s_dev_p->cmd.buffptr = NULL;
+    if (aesd_device.cmd.buffptr[aesd_device.cmd.size - 1] == '\n') {
+        aesd_circular_buffer_add_entry(&aesd_device.circbuf, &aesd_device.cmd);
+        aesd_device.cmd.size = 0;
+        aesd_device.cmd.buffptr = NULL;
     }
     
     retval = count;
     
   out:
-	mutex_unlock(&s_dev_p->lock);
+	mutex_unlock(&aesd_device.lock);
 	return retval;
 
 }
