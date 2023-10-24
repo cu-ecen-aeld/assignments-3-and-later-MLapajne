@@ -78,7 +78,7 @@ void handle_signal(int signum) {
         pthread_mutex_destroy(&mutex);
         shutdown(sockfd1, SHUT_RDWR);
 
-        if (USE_AESD_CHAR_DEVICE == 1) {
+        if (USE_AESD_CHAR_DEVICE == 0) {
             remove(FILE_PATH);
         }
         closelog();
@@ -267,7 +267,7 @@ static int handle_connection() {
 
     // Handle timestamp
 
-    if (USE_AESD_CHAR_DEVICE == 1) {
+    if (USE_AESD_CHAR_DEVICE == 0) {
         pthread_t timestamp_thread;
         if (pthread_create(&timestamp_thread, NULL, add_timestamps, NULL) != 0) {
             perror("Error creating timestamp thread");
