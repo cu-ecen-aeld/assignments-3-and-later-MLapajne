@@ -197,8 +197,10 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         if (!aesd_device.cmd.buffptr){
             goto out;
         }
-        //memset(s_cmd_p->buf, 0, BUF_SIZE);
+        memset(aesd_device.cmd.buffptr, 0, BUF_SIZE);
     }
+    if ((aesd_device.cmd.size + count) > BUF_SIZE)
+        goto out;
 
     ker_buf = (char *)aesd_device.cmd.buffptr + aesd_device.cmd.size;
  
