@@ -184,6 +184,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 {
     PDEBUG("write %zu bytes with offset %lld", count, *f_pos);
     ssize_t retval = -ENOMEM;
+    char* ker_buf;
     /* struct aesd_dev *s_dev_p = filp->private_data; */
 
     if (mutex_lock_interruptible(&aesd_device.lock))
@@ -198,19 +199,23 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         }
         //memset(s_cmd_p->buf, 0, BUF_SIZE);
     }
+
+    ker_buf = (char *)aesd_device.cmd.buffptr + aesd_device.cmd.size;
  
     
     /* Copy the write command from user space */
-    if (copy_from_user(&aesd_device.cmd.buffptr[aesd_device.cmd.size], buf, count)) {
+    if (copy_from_user(ker_buf, buf, count)) {
         retval = -EFAULT;
         goto out;
     }
+
+
 
     aesd_device.cmd.size += count;
     *f_pos += count;
 
     /* Check if data has newline character */
-    if (aesd_device.cmd.buffptr[aesd_device.cmd.size - 1] == '\n') {
+    if (ker_buf[count - 1] == '\n') {
         if (aesd_device.circbuf.entry[aesd_device.circbuf.in_offs].buffptr)
             kfree(aesd_device.circbuf.entry[aesd_device.circbuf.in_offs].buffptr);
         aesd_circular_buffer_add_entry(&aesd_device.circbuf, &aesd_device.cmd);
