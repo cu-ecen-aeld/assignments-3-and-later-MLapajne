@@ -34,7 +34,7 @@ module_param(aesd_major, int, S_IRUGO);
 module_param(aesd_minor, int, S_IRUGO);
 
 
-#define BUF_SIZE  (1024 * 1024)
+#define BUF_SIZE  1024
 
 
 MODULE_AUTHOR("Matevz Lapajne"); /** TODO: fill in your name **/
