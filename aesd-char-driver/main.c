@@ -175,25 +175,61 @@ out:
 
 loff_t aesd_llseek (struct file *filp, loff_t offset, int whence)
 {
-    volatile unsigned int before, after;
     PDEBUG("llseek");
-
+    loff_t buffer_size = 0;
+    uint8_t index;
     loff_t retval;
 
     if (mutex_lock_interruptible(&aesd_device.lock))
         return -ERESTARTSYS;
 
-    before = filp->f_pos;
 
-    retval = fixed_size_llseek(filp, offset, whence, aesd_device.circular_buf.size);
+    //retval = fixed_size_llseek(filp, offset, whence, aesd_device.circular_buf.size);
+
+    switch (whence) {
+
+    // Use specified offset as file position
+    case SEEK_SET: 
+        retval = offset;
+        PDEBUG("MAIN.c: SEEK_SET set the offset to %lld\n", retval);
+        break;
+
+    // Increment or decrement file position
+    case SEEK_CUR: 
+        retval = filp->f_pos + offset;
+        PDEBUG("MAIN.c: SEEK_CUR set the offset to %lld\n", retval);
+        break;
+
+    // Use EOF as file position
+    case SEEK_END: 
+        for (index = 0; index < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+             index++) {
+            if (aesd_device.circular_buf.entry[index].buffptr) { 
+                buffer_size += aesd_device.circular_buf.entry[index].size;
+            }
+        }
+        retval = buffer_size + offset;
+        PDEBUG("MAIN.c: SEEK_END set the offset to %lld\n", retval);
+        break;
+
+    default:
+        retval = -EINVAL;
+        goto out;
+    }
+
+    if (retval < 0) {
+        PDEBUG("MAIN.c: Invalid arguments. Offset cannot be set to %lld\n", retval);
+        retval = -EINVAL;
+        goto out;
+    }
+
+   
+
     PDEBUG("llseek");
+    filp->f_pos = retval;
 
-    after = filp->f_pos;
-
-    PDEBUG("f_pos: %u -> %u", before, after);
-
+out:
     mutex_unlock(&aesd_device.lock);
-
     return retval;
 }
 
