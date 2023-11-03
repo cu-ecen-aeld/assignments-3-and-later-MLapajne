@@ -47,14 +47,14 @@ static long aesd_adjust_file_offset(struct file* filp, unsigned int write_cmd, u
     if (mutex_lock_interruptible(&pdev->lock))
         return -ERESTARTSYS;
 
-    if (!pdev->circular_buf.entry[entry_index].buffptr)
+    if (!pdev->circular_buf.entry[entry_index].buffptr) //no data
         goto out;
 
-    if (write_cmd_offset >= pdev->circular_buf.entry[entry_index].size)
+    if (write_cmd_offset >= pdev->circular_buf.entry[entry_index].size) //big than size
         goto out;
 
     retval = aesd_circular_buffer_find_offset_for_entry_index(&pdev->circular_buf,
-        entry_index) + write_cmd_offset;
+        entry_index);
 
     PDEBUG("write_cmd %u with offset %u: total_offset %lu",write_cmd,
         write_cmd_offset, retval);
