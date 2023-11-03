@@ -35,24 +35,25 @@ static long aesd_adjust_file_offset(struct file* filp, unsigned int write_cmd, u
 {
     long retval = -EINVAL;
     unsigned int entry_index;
+    struct aesd_dev *pdev = filp->private_data;
 
     if (write_cmd >= AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)
         return -EINVAL;
 
-    entry_index = aesd_device.circular_buf.out_offs + write_cmd;
+    entry_index = pdev->circular_buf.out_offs + write_cmd;
     if (entry_index >= AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)
         entry_index -= AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
 
-    if (mutex_lock_interruptible(&aesd_device.lock))
+    if (mutex_lock_interruptible(&pdev->lock))
         return -ERESTARTSYS;
 
-    if (!aesd_device.circular_buf.entry[entry_index].buffptr)
+    if (!pdev->circular_buf.entry[entry_index].buffptr)
         goto out;
 
-    if (write_cmd_offset >= aesd_device.circular_buf.entry[entry_index].size)
+    if (write_cmd_offset >= pdev->circular_buf.entry[entry_index].size)
         goto out;
 
-    retval = aesd_circular_buffer_find_offset_for_entry_index(&aesd_device.circular_buf,
+    retval = aesd_circular_buffer_find_offset_for_entry_index(&pdev->circular_buf,
         entry_index) + write_cmd_offset;
 
     PDEBUG("write_cmd %u with offset %u: total_offset %lu",write_cmd,
@@ -61,7 +62,7 @@ static long aesd_adjust_file_offset(struct file* filp, unsigned int write_cmd, u
     filp->f_pos = retval;
 
 out:
-    mutex_unlock(&aesd_device.lock);
+    mutex_unlock(&pdev->lock);
     return retval;
 }
 
@@ -88,38 +89,46 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
                 loff_t *f_pos)
 {
     ssize_t retval = 0;
+    struct aesd_dev *pdev = filp->private_data;
+    struct aesd_buffer_entry *pbuf = NULL;
+    size_t offset_in_buf = 0;
+
     PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
     /**
      * TODO: handle read
      */
+    if (pdev == NULL) {
+        retval = -EFAULT;
+        goto out;
+    }
 
-    if (mutex_lock_interruptible(&aesd_device.lock))
+    if (mutex_lock_interruptible(&pdev.lock))
         return -ERESTARTSYS;
 
-    do {
-        size_t offset_in_buf, copy_size;
-        struct aesd_buffer_entry *pbuf =
-          aesd_circular_buffer_find_entry_offset_for_fpos(&aesd_device.circular_buf, *f_pos, &offset_in_buf);
+    
+    size_t copy_size;
+    pbuf =
+        aesd_circular_buffer_find_entry_offset_for_fpos(&pdev->circular_buf, *f_pos, &offset_in_buf);
 
-        if (!pbuf)
-            goto out;
+    if (!pbuf)
+        goto out;
 
-        copy_size = ((retval + pbuf->size - offset_in_buf) <= count) ?
-          (pbuf->size - offset_in_buf) : (count - retval);
+    size_t kernel_data_size = pbuf->size - offset_in_buf;
+    if (kernel_data_size > count)
+        kernel_data_size = count;
 
 
-        if (copy_to_user(buf + retval, pbuf->buffptr + offset_in_buf, copy_size))
-        {
-            retval = -EFAULT;
-            goto out;
-        }
+    if (copy_to_user(buf, pbuf->buffptr + offset_in_buf, kernel_data_size))
+    {
+        retval = -EFAULT;
+        goto out;
+    }
 
-        retval += copy_size;
-        *f_pos += copy_size;
-    } while (retval < count);
+    retval = kernel_data_size;
+    *f_pos += kernel_data_size;
 
 out:
-    mutex_unlock(&aesd_device.lock);
+    mutex_unlock(&pdev->lock);
     return retval;
 }
 
@@ -128,48 +137,52 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 {
     char* ker_buf;
     ssize_t retval = -ENOMEM;
+    struct aesd_dev *pdev = filp->private_data;
+
     PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
     /**
      * TODO: handle write
      */
-    if (mutex_lock_interruptible(&aesd_device.lock))
+    if (mutex_lock_interruptible(&pdev>lock))
         return -ERESTARTSYS;
 
-    if (!aesd_device.cur_buf.buffptr)
+
+    if (!pdev->cur_buf.buffptr) 
     {
-        aesd_device.cur_buf.buffptr = kmalloc(BUF_SIZE, GFP_KERNEL);
-        if (!aesd_device.cur_buf.buffptr){
+        pdev->cur_buf.buffptr = kmalloc(BUF_SIZE, GFP_KERNEL);
+        if (!pdev->cur_buf.buffptr){
             goto out;
         }
         //memset(aesd_device.cur_buf.buffptr, 0, BUF_SIZE);
     }
 
-    if ((aesd_device.cur_buf.size + count) > BUF_SIZE)
+    if ((pdev->cur_buf.size + count) > BUF_SIZE)
         goto out;
 
-    ker_buf = (char *)aesd_device.cur_buf.buffptr + aesd_device.cur_buf.size;
+    ker_buf = (char *)pdev->cur_buf.buffptr + pdev->cur_buf.size;
 
     if (copy_from_user(ker_buf, buf, count)) {
         retval = -EFAULT;
         goto out;
     }
 
-    aesd_device.cur_buf.size += count;
+    pdev->cur_buf.size += count;
     *f_pos += count;
 
     if (ker_buf[count - 1] == '\n') {
-        if (aesd_device.circular_buf.entry[aesd_device.circular_buf.in_offs].buffptr)
-            kfree(aesd_device.circular_buf.entry[aesd_device.circular_buf.in_offs].buffptr);
-        aesd_circular_buffer_add_entry(&aesd_device.circular_buf, &aesd_device.cur_buf);
-        aesd_device.cur_buf.buffptr = NULL;
-        aesd_device.cur_buf.size = 0;
+        if (pdev->circular_buf.entry[pdev->circular_buf.in_offs].buffptr)
+            kfree(pdev->circular_buf.entry[pdev->circular_buf.in_offs].buffptr);
+        pdev->cur_buf.buffptr = ker_buf;
+        aesd_circular_buffer_add_entry(&pdev->circular_buf, &pdev->cur_buf);
+        pdev->cur_buf.buffptr = NULL;
+        pdev->cur_buf.size = 0;
         PDEBUG("add entry");
     }
 
     retval = count;
 
 out:
-    mutex_unlock(&aesd_device.lock);
+    mutex_unlock(&pdev>lock);
     return retval;
 }
 
@@ -177,10 +190,11 @@ loff_t aesd_llseek (struct file *filp, loff_t offset, int whence)
 {
     PDEBUG("llseek");
     loff_t buffer_size = 0;
+    struct aesd_dev *dev = filp->private_data;
     uint8_t index;
     loff_t retval;
 
-    if (mutex_lock_interruptible(&aesd_device.lock))
+    if (mutex_lock_interruptible(&dev->lock))
         return -ERESTARTSYS;
 
 
@@ -204,8 +218,8 @@ loff_t aesd_llseek (struct file *filp, loff_t offset, int whence)
     case SEEK_END: 
         for (index = 0; index < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
              index++) {
-            if (aesd_device.circular_buf.entry[index].buffptr) { 
-                buffer_size += aesd_device.circular_buf.entry[index].size;
+            if (dev->circular_buf.entry[index].buffptr) { 
+                buffer_size += dev->circular_buf.entry[index].size;
             }
         }
         retval = buffer_size + offset;
@@ -229,7 +243,7 @@ loff_t aesd_llseek (struct file *filp, loff_t offset, int whence)
     filp->f_pos = retval;
 
 out:
-    mutex_unlock(&aesd_device.lock);
+    mutex_unlock(&dev->lock);
     return retval;
 }
 
@@ -295,9 +309,10 @@ int aesd_init_module(void)
      * TODO: initialize the AESD specific portion of the device
      */
     aesd_circular_buffer_init(&aesd_device.circular_buf);
-    mutex_init(&aesd_device.lock);
-    result = aesd_setup_cdev(&aesd_device);
 
+    mutex_init(&aesd_device.lock);
+
+    result = aesd_setup_cdev(&aesd_device);
     if( result ) {
         unregister_chrdev_region(dev, 1);
     }
@@ -316,7 +331,7 @@ void aesd_cleanup_module(void)
     /**
      * TODO: cleanup AESD specific poritions here as necessary
      */
-    AESD_CIRCULAR_BUFFER_FOREACH(entry,&aesd_device.circular_buf,index) {
+    AESD_CIRCULAR_BUFFER_FOREACH(entry,&aesd_device.circular_buf, index) {
         if (entry->buffptr)
             kfree(entry->buffptr);
     }
