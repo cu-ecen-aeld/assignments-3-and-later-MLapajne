@@ -102,7 +102,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
         goto out;
     }
 
-    if (mutex_lock_interruptible(&pdev.lock))
+    if (mutex_lock_interruptible(&pdev->lock))
         return -ERESTARTSYS;
 
     
