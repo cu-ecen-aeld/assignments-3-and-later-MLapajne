@@ -188,63 +188,16 @@ out:
 
 loff_t aesd_llseek (struct file *filp, loff_t offset, int whence)
 {
-    PDEBUG("llseek");
+    struct aesd_dev *pdev = filp->private_data;
+
+    /* Get buffer size */
     loff_t buffer_size = 0;
-    struct aesd_dev *dev = filp->private_data;
-    uint8_t index;
-    loff_t retval;
-
-    if (mutex_lock_interruptible(&dev->lock))
-        return -ERESTARTSYS;
-
-
-    //retval = fixed_size_llseek(filp, offset, whence, aesd_device.circular_buf.size);
-
-    switch (whence) {
-
-    // Use specified offset as file position
-    case SEEK_SET: 
-        retval = offset;
-        PDEBUG("MAIN.c: SEEK_SET set the offset to %lld\n", retval);
-        break;
-
-    // Increment or decrement file position
-    case SEEK_CUR: 
-        retval = filp->f_pos + offset;
-        PDEBUG("MAIN.c: SEEK_CUR set the offset to %lld\n", retval);
-        break;
-
-    // Use EOF as file position
-    case SEEK_END: 
-        for (index = 0; index < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
-             index++) {
-            if (dev->circular_buf.entry[index].buffptr) { 
-                buffer_size += dev->circular_buf.entry[index].size;
-            }
-        }
-        retval = buffer_size + offset;
-        PDEBUG("MAIN.c: SEEK_END set the offset to %lld\n", retval);
-        break;
-
-    default:
-        retval = -EINVAL;
-        goto out;
+    int i = 0;
+    for (i = 0; i<AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED; i++)
+    {
+        buffer_size =  buffer_size + pdev->circular_buf.entry[i].size;
     }
-
-    if (retval < 0) {
-        PDEBUG("MAIN.c: Invalid arguments. Offset cannot be set to %lld\n", retval);
-        retval = -EINVAL;
-        goto out;
-    }
-
-   
-
-    PDEBUG("llseek");
-    filp->f_pos = retval;
-
-out:
-    mutex_unlock(&dev->lock);
-    return retval;
+    return fixed_size_llseek(filp, offset, whence, buffer_size);
 }
 
 long aesd_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
@@ -262,7 +215,7 @@ long aesd_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
             break;
         }
         default:
-            retval = -EFAULT;
+            return -ENOTTY;
     }
 
     return retval;
