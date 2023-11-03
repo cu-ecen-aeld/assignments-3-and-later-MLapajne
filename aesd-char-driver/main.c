@@ -143,7 +143,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     /**
      * TODO: handle write
      */
-    if (mutex_lock_interruptible(&pdev>lock))
+    if (mutex_lock_interruptible(&pdev->lock))
         return -ERESTARTSYS;
 
 
