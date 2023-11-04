@@ -31,11 +31,13 @@ MODULE_LICENSE("Dual BSD/GPL");
 
 struct aesd_dev aesd_device;
 
+
 static long aesd_adjust_file_offset(struct file* filp, unsigned int write_cmd, unsigned int write_cmd_offset)
 {
     long retval = -EINVAL;
     unsigned int entry_index;
     struct aesd_dev *pdev = filp->private_data;
+    int new_fpos = 0;
 
     if (write_cmd >= AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)
         return -EINVAL;
@@ -54,14 +56,12 @@ static long aesd_adjust_file_offset(struct file* filp, unsigned int write_cmd, u
         goto out;
 
     int index;
-    for (index = 0; index < cmd; index++) { 
+    for (index = 0; index < write_cmd; index++) { 
         int entry_index = (index + pdev->circular_buf.out_offs) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
         new_fpos += pdev->circular_buf.entry[entry_index].size;
     }
-    retval += offset;
-
-    filp->f_pos = retval;
-
+    new_fpos += offset;
+    retval = new_fpos;
 out:
     mutex_unlock(&pdev->lock);
     return retval;
