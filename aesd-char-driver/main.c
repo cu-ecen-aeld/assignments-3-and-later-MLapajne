@@ -122,7 +122,7 @@ loff_t aesd_llseek(struct file *filp, loff_t offset, int whence) {
     PDEBUG("Attempting to adjust offset by: %lld", offset);
 
     mutex_lock(&dev->read_write_mutex);
-    retval = fixed_size_llseek(filp, offset, whence, dev->buffer.size);
+    retval = fixed_size_llseek(filp, offset, whence, dev->buffer.total_size);
     mutex_unlock(&dev->read_write_mutex);
 
     return retval;
