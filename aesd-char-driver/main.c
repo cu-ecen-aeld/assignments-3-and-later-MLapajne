@@ -39,7 +39,7 @@ static long aesd_adjust_file_offset(struct file* filp, unsigned int write_cmd, u
     struct aesd_dev *pdev = filp->private_data;
     int new_fpos = 0;
 
-    if (write_cmd >= AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)
+    if (write_cmd > AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)
         return -EINVAL;
 
     entry_index = pdev->circular_buf.out_offs + write_cmd;
@@ -52,7 +52,7 @@ static long aesd_adjust_file_offset(struct file* filp, unsigned int write_cmd, u
     if (!pdev->circular_buf.entry[entry_index].buffptr) //no data
         goto out;
 
-    if (write_cmd_offset >= pdev->circular_buf.entry[entry_index].size) //big than size
+    if (write_cmd_offset > pdev->circular_buf.entry[entry_index].size) //big than size
         goto out;
 
     int index;
@@ -162,14 +162,15 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 
     ker_buf = (char *)pdev->cur_buf.buffptr + pdev->cur_buf.size;
 
-    count_remaining = copy_from_user(ker_buf, buf, count);
+    count_remaining = copy_from_user((void*)&pdev->cur_buf.buffptr[pdev->cur_buf.size], buf, count);
 
     retval = count - count_remaining;
     pdev->cur_buf.size += retval;
     *f_pos += retval;
 
     if (strchr((char*)pdev->cur_buf.buffptr, '\n')) {
-        aesd_circular_buffer_add_entry(&pdev->circular_buf, &pdev->cur_buf);
+        const char* buffptr_to_free = aesd_circular_buffer_add_entry(&pdev->circular_buf, &pdev->cur_buf);
+        kfree(buffptr_to_free);
         pdev->cur_buf.buffptr = NULL;
         pdev->cur_buf.size = 0;
         PDEBUG("add entry");
