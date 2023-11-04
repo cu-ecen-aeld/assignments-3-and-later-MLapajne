@@ -138,6 +138,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     char* ker_buf;
     ssize_t retval = -ENOMEM;
     struct aesd_dev *pdev = filp->private_data;
+    ssize_t count_remaining;
 
     PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
     /**
@@ -146,40 +147,34 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     if (mutex_lock_interruptible(&pdev->lock))
         return -ERESTARTSYS;
 
-
-    if (!pdev->cur_buf.buffptr) 
-    {
-        pdev->cur_buf.buffptr = kmalloc(BUF_SIZE, GFP_KERNEL);
-        if (!pdev->cur_buf.buffptr){
-            goto out;
-        }
-        //memset(aesd_device.cur_buf.buffptr, 0, BUF_SIZE);
+    if (pdev->cur_buf.size == 0) {
+        dev->entry.buffptr = kzalloc(count, GFP_KERNEL);
     }
-
-    if ((pdev->cur_buf.size + count) > BUF_SIZE)
-        goto out;
-
-    ker_buf = (char *)pdev->cur_buf.buffptr + pdev->cur_buf.size;
-
-    if (copy_from_user(ker_buf, buf, count)) {
-        retval = -EFAULT;
+    else {
+        int new_size = pdev->cur_buf.size + count;
+        dev->cur_buf.buffptr = krealloc(dev->cur_buf.buffptr, new_size, GFP_KERNEL);
+    }
+    if (dev->cur_buf.buffptr == NULL) {
         goto out;
     }
 
-    pdev->cur_buf.size += count;
-    *f_pos += count;
 
-    if (ker_buf[count - 1] == '\n') {
-        if (pdev->circular_buf.entry[pdev->circular_buf.in_offs].buffptr)
-            kfree(pdev->circular_buf.entry[pdev->circular_buf.in_offs].buffptr);
-        pdev->cur_buf.buffptr = ker_buf;
-        aesd_circular_buffer_add_entry(&pdev->circular_buf, &pdev->cur_buf);
+    ker_buf = (void *)pdev->cur_buf.buffptr + pdev->cur_buf.size;
+
+    count_remaining = copy_from_user(ker_buf, buf, count)
+
+    retval = count - count_remaining;
+    pdev->cur_buf.size += retval;
+    *f_pos += retval;
+
+    if (pdev->cur_buf.buffptr[count - 1] == '\n') {
+        const char* buffptr_to_free =  aesd_circular_buffer_add_entry(&pdev->circular_buf, &pdev->cur_buf);
+        kfree(buffptr_to_free);
         pdev->cur_buf.buffptr = NULL;
         pdev->cur_buf.size = 0;
         PDEBUG("add entry");
     }
 
-    retval = count;
 
 out:
     mutex_unlock(&pdev->lock);
