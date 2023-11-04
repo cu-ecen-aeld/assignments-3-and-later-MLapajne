@@ -167,7 +167,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     pdev->cur_buf.size += retval;
     *f_pos += retval;
 
-    if (pdev->cur_buf.buffptr[count - 1] == '\n') {
+    if (strchr((char*)cur_buf->entry.buffptr, '\n')) {
         const char* buffptr_to_free =  aesd_circular_buffer_add_entry(&pdev->circular_buf, &pdev->cur_buf);
         kfree(buffptr_to_free);
         pdev->cur_buf.buffptr = NULL;
