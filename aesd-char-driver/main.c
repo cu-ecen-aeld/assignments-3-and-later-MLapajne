@@ -191,7 +191,7 @@ loff_t aesd_llseek (struct file *filp, loff_t offset, int whence)
     {
         buffer_size =  buffer_size + pdev->circular_buf.entry[i].size;
     }
-    return fixed_size_llseek(filp, offset, whence, buffer_size);
+    return fixed_size_llseek(filp, offset, whence, pdev->circular_buf.size);
 }
 
 long aesd_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
