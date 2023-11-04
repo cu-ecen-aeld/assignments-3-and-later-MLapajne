@@ -53,11 +53,12 @@ static long aesd_adjust_file_offset(struct file* filp, unsigned int write_cmd, u
     if (write_cmd_offset >= pdev->circular_buf.entry[entry_index].size) //big than size
         goto out;
 
-    retval = aesd_circular_buffer_find_offset_for_entry_index(&pdev->circular_buf,
-        entry_index) + write_cmd_offset;
-
-    PDEBUG("write_cmd %u with offset %u: total_offset %lu",write_cmd,
-        write_cmd_offset, retval);
+    int index;
+    for (index = 0; index < cmd; index++) { 
+        int entry_index = (index + pdev->circular_buf.out_offs) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+        new_fpos += pdev->circular_buf.entry[entry_index].size;
+    }
+    retval += offset;
 
     filp->f_pos = retval;
 
