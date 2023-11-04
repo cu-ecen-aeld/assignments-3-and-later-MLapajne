@@ -60,7 +60,7 @@ static long aesd_adjust_file_offset(struct file* filp, unsigned int write_cmd, u
         int entry_index = (index + pdev->circular_buf.out_offs) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
         new_fpos += pdev->circular_buf.entry[entry_index].size;
     }
-    new_fpos += offset;
+    new_fpos += write_cmd_offset;
     retval = new_fpos;
 out:
     mutex_unlock(&pdev->lock);
