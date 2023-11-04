@@ -5,13 +5,10 @@
  *      Author: Dan Walkes
  */
 
-#include "aesd-circular-buffer.h"
-
 #ifndef AESD_CHAR_DRIVER_AESDCHAR_H_
 #define AESD_CHAR_DRIVER_AESDCHAR_H_
 
-//Remove comment on this line to enable debug
-#define AESD_DEBUG 1
+#define AESD_DEBUG 1  //Remove comment on this line to enable debug
 
 #undef PDEBUG             /* undef it, just in case */
 #ifdef AESD_DEBUG
@@ -25,15 +22,15 @@
 #else
 #  define PDEBUG(fmt, args...) /* not debugging: nothing */
 #endif
-
+#include "aesd-circular-buffer.h"
 struct aesd_dev
 {
     /**
      * TODO: Add structure(s) and locks needed to complete assignment requirements
      */
-    struct aesd_buffer_entry cur_buf;
-    struct aesd_circular_buffer circular_buf;
-    struct mutex lock;     /* mutual exclusion semaphore     */
+    struct aesd_buffer_entry entry;
+    struct aesd_circular_buffer buffer;
+    struct mutex read_write_mutex;
     struct cdev cdev;     /* Char device structure      */
 };
 
