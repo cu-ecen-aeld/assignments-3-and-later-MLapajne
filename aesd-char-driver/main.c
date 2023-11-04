@@ -185,7 +185,7 @@ out:
 loff_t aesd_llseek (struct file *filp, loff_t offset, int whence)
 {
     struct aesd_dev *pdev = filp->private_data;
-
+    loff_t retval = -EINVAL;
     /* Get buffer size */
     loff_t buffer_size = 0;
     int i = 0;
@@ -193,7 +193,10 @@ loff_t aesd_llseek (struct file *filp, loff_t offset, int whence)
     {
         buffer_size =  buffer_size + pdev->circular_buf.entry[i].size;
     }
-    return fixed_size_llseek(filp, offset, whence, pdev->circular_buf.size);
+    mutex_lock(&pdev->lock);
+    retval = fixed_size_llseek(filp, offset, whence, pdev->circular_buf.size);
+    mutex_unlock(&pdev->lock);
+    return retval;
 }
 
 long aesd_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
@@ -259,7 +262,7 @@ int aesd_init_module(void)
     /**
      * TODO: initialize the AESD specific portion of the device
      */
-    aesd_circular_buffer_init(&aesd_device.circular_buf);
+    //aesd_circular_buffer_init(&aesd_device.circular_buf);
 
     mutex_init(&aesd_device.lock);
 
@@ -287,6 +290,7 @@ void aesd_cleanup_module(void)
             kfree(entry->buffptr);
     }
     kfree(aesd_device.cur_buf.buffptr);
+    mutex_destroy(&aesd_device.lock);
     unregister_chrdev_region(devno, 1);
 }
 
