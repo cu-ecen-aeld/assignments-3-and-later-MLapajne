@@ -148,7 +148,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         return -ERESTARTSYS;
 
     if (pdev->cur_buf.size == 0) {
-        pdev->entry.buffptr = kzalloc(count, GFP_KERNEL);
+        pdev->cur_buf.buffptr = kzalloc(count, GFP_KERNEL);
     }
     else {
         int new_size = pdev->cur_buf.size + count;
@@ -159,7 +159,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     }
 
 
-    ker_buf = (void *)pdev->cur_buf.buffptr + pdev->cur_buf.size;
+    ker_buf = (char *)pdev->cur_buf.buffptr + pdev->cur_buf.size;
 
     count_remaining = copy_from_user(ker_buf, buf, count);
 
@@ -167,7 +167,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     pdev->cur_buf.size += retval;
     *f_pos += retval;
 
-    if ((* char)pdev->cur_buf.buffptr[count - 1] == '\n') {
+    if (pdev->cur_buf.buffptr[count - 1] == '\n') {
         const char* buffptr_to_free =  aesd_circular_buffer_add_entry(&pdev->circular_buf, &pdev->cur_buf);
         kfree(buffptr_to_free);
         pdev->cur_buf.buffptr = NULL;
