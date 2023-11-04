@@ -54,7 +54,7 @@ static long aesd_adjust_file_offset(struct file* filp, unsigned int write_cmd, u
         goto out;
 
     retval = aesd_circular_buffer_find_offset_for_entry_index(&pdev->circular_buf,
-        entry_index);
+        entry_index) + write_cmd_offset;
 
     PDEBUG("write_cmd %u with offset %u: total_offset %lu",write_cmd,
         write_cmd_offset, retval);
@@ -210,8 +210,10 @@ long aesd_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
             struct aesd_seekto seekto;
             if (copy_from_user(&seekto, (const void __user *)arg, sizeof(seekto)) != 0)
                 retval = -EFAULT;
-            else
+            else {
                 retval = aesd_adjust_file_offset(filp, seekto.write_cmd, seekto.write_cmd_offset);
+                filp->f_pos = retval;
+            }
             break;
         }
         default:
@@ -288,7 +290,7 @@ void aesd_cleanup_module(void)
         if (entry->buffptr)
             kfree(entry->buffptr);
     }
-
+    kfree(aesd_device.cur_buf.buffptr);
     unregister_chrdev_region(devno, 1);
 }
 
